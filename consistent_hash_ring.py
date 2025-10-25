@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional, List, Dict
 from hashlib import sha256
 import bisect
 
-class ConsistentHashing:
+class ConsistentHashRing:
     def __init__(
         self,
         vnode_count: int = 100,
@@ -53,6 +53,31 @@ class ConsistentHashing:
             return None
 
         key_hash = self.hash_function(key)
-        idx = bisect.bisect_right(self.ring, key_hash) % len(self.ring)
+        idx = bisect.bisect_left(self.ring, key_hash) % len(self.ring)
         vnode_hash = self.ring[idx]
         return self.vnode_map[vnode_hash]
+
+    def get_nodes_for_key(self, key: str, replica_count: Optional[int] = None) -> List[str]:
+        if not self.ring:
+            print("Warning: No nodes in the hash ring.")
+            return []
+        
+        if replica_count is None:
+            replica_count = self.replication_factor
+        if replica_count > len(self.nodes):
+            print("Warning: Requested replica count exceeds number of available nodes. Adjusting to maximum available nodes.")
+            replica_count = len(self.nodes)
+        key_hash = self.hash_function(key)
+        idx = bisect.bisect_left(self.ring, key_hash) % len(self.ring)
+
+        selected_nodes = set()
+        result = []
+        while len(result) < replica_count:
+            vnode_hash = self.ring[idx]
+            node_id = self.vnode_map[vnode_hash]
+            if node_id not in selected_nodes:
+                selected_nodes.add(node_id)
+                result.append(node_id)
+            idx = (idx + 1) % len(self.ring)
+
+        return result
