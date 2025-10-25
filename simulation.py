@@ -3,6 +3,7 @@ import statistics
 from collections import Counter
 from consistent_hash_ring import ConsistentHashRing
 
+
 def run_simulation(N, M, VNODE_COUNT, R):
     """
     Runs a full simulation of the consistent hash ring.
@@ -28,7 +29,7 @@ def run_simulation(N, M, VNODE_COUNT, R):
     nodes = [f"node-{i}" for i in range(N)]
     for node_id in nodes:
         ring.add_node(node_id)
-    
+
     print(f"\nRing created with {N} nodes.")
 
     # 3. --- Measure initial distribution ---
@@ -37,7 +38,7 @@ def run_simulation(N, M, VNODE_COUNT, R):
     for key in keys:
         node = ring.get_node(key)
         key_distribution[node] += 1
-    
+
     print("Key distribution per node:")
     for node_id in nodes:
         count = key_distribution.get(node_id, 0)
@@ -53,25 +54,25 @@ def run_simulation(N, M, VNODE_COUNT, R):
     print(f"  StdDev: {stddev:.2f} ({(stddev / mean) * 100:.2f}% of mean)")
     print(f"  Min:    {min(counts)} keys")
     print(f"  Max:    {max(counts)} keys")
-    
+
     # --- 4. Measure movement on NODE JOIN ---
     print("\n--- Measuring Movement (Node Join) ---")
-    
+
     # Store initial mapping (State 1)
     initial_mapping = {key: ring.get_node(key) for key in keys}
-    
+
     # Add a new node
     new_node_id = f"node-{N}"
     print(f"Adding node '{new_node_id}'...")
     ring.add_node(new_node_id)
-    
+
     # Check remapping and store intermediate mapping (State 2)
     intermediate_mapping = {}
     moved_count_join = 0
     for key in keys:
         new_node = ring.get_node(key)
-        intermediate_mapping[key] = new_node # Store State 2
-        
+        intermediate_mapping[key] = new_node  # Store State 2
+
         if initial_mapping[key] != new_node:
             moved_count_join += 1
             # In a join, keys should only move to the new node
@@ -79,30 +80,32 @@ def run_simulation(N, M, VNODE_COUNT, R):
 
     moved_fraction = moved_count_join / M
     expected_fraction = 1.0 / (N + 1)
-    
+
     print(f"Keys remapped: {moved_count_join} / {M} ({moved_fraction:.4f})")
     print(f"Expected:      ~{expected_fraction:.4f} (1 / {N+1})")
 
     # --- 5. Measure movement on NODE REMOVE ---
     print("\n--- Measuring Movement (Node Remove) ---")
-    
+
     # We'll remove the node we just added
     print(f"Removing node '{new_node_id}'...")
     ring.remove_node(new_node_id)
-    
+
     moved_count_remove = 0
     consistency_errors = 0
-    
+
     for key in keys:
         # Get final mapping (State 3)
         final_node = ring.get_node(key)
-        
+
         # Check 1: Did keys move *off* the new node?
         if intermediate_mapping[key] != final_node:
             moved_count_remove += 1
             # They should only have moved *if* they were on the removed node
-            assert intermediate_mapping[key] == new_node_id, "A key moved from a non-removed node"
-        
+            assert (
+                intermediate_mapping[key] == new_node_id
+            ), "A key moved from a non-removed node"
+
         # Check 2: Did the ring return to its *original* state?
         if initial_mapping[key] != final_node:
             consistency_errors += 1
@@ -110,11 +113,13 @@ def run_simulation(N, M, VNODE_COUNT, R):
 
     print(f"Keys remapped *off* '{new_node_id}': {moved_count_remove} / {M}")
     print(f"Total consistency errors: {consistency_errors}")
-    
+
     # The real tests:
     assert consistency_errors == 0, "Ring did not return to its original state"
-    assert moved_count_join == moved_count_remove, "Move-on count does not equal move-off count"
-    
+    assert (
+        moved_count_join == moved_count_remove
+    ), "Move-on count does not equal move-off count"
+
     print("\nSimulation complete. Ring is consistent.")
 
 
@@ -125,5 +130,5 @@ if __name__ == "__main__":
     VNODES_PER_NODE = 100
     REPLICATION_FACTOR = 3
     # -------------------------------
-    
+
     run_simulation(NUM_NODES, NUM_KEYS, VNODES_PER_NODE, REPLICATION_FACTOR)
