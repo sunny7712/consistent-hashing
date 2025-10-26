@@ -1,5 +1,7 @@
 import unittest
 from consistent_hash_ring import ConsistentHashRing
+import threading
+import random
 
 
 class TestConsistentHashRing(unittest.TestCase):
@@ -170,6 +172,45 @@ class TestConsistentHashRing(unittest.TestCase):
         self.assertNotIn(node_to_remove, remap_distribution)
         self.assertEqual(len(remap_distribution.keys()), N - 1)
         print("Minimal movement on remove test passed.")
+
+    def test_concurrency(self):
+        """
+        Tests that the ring remains consistent under concurrent access.
+        """
+        print("\nRunning test_concurrency...")
+        num_threads = 10
+        nodes_to_add = [f"node-{i}" for i in range(100, 100 + num_threads)]
+        nodes_to_remove = random.sample(self.nodes, 2)
+
+        def worker(ring, node_id_to_add, node_id_to_remove):
+            ring.add_node(node_id_to_add)
+            ring.remove_node(node_id_to_remove)
+            for i in range(100):
+                ring.get_node(f"key-{i}")
+                ring.get_nodes_for_key(f"key-{i}")
+
+        threads = []
+        for i in range(num_threads):
+            # Each thread gets a unique node to add, and one of the two nodes to remove
+            node_to_remove_for_thread = nodes_to_remove[i % len(nodes_to_remove)]
+            t = threading.Thread(target=worker, args=(self.ring, nodes_to_add[i], node_to_remove_for_thread))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        # Check for consistency after concurrent operations
+        # The final set of nodes should be the initial nodes, minus the ones we removed, plus the ones we added.
+        expected_nodes = set(self.nodes) - set(nodes_to_remove) | set(nodes_to_add)
+        self.assertEqual(set(self.ring.nodes.keys()), expected_nodes)
+
+        # Verify that the ring structure is not corrupted
+        self.assertTrue(len(self.ring.ring) > 0)
+        self.assertTrue(len(self.ring.vnode_map) > 0)
+        self.assertEqual(len(self.ring.ring), len(self.ring.vnode_map))
+
+        print("Concurrency test passed.")
 
 
 if __name__ == "__main__":

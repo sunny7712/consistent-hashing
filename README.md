@@ -8,6 +8,7 @@ The primary goal of consistent hashing is to minimize key remapping when the num
 
 ## Features
 
+* **Thread-Safe Operations**: All public methods (`add_node`, `remove_node`, `get_node`, `get_nodes_for_key`) are protected by a `threading.Lock`, making the `ConsistentHashRing` instance safe for concurrent access from multiple threads.
 * **Dynamic Node Management**: Add and remove nodes from the ring at runtime with `add_node()` and `remove_node()`.
 * **Virtual Nodes (vnodes)**: Uses virtual nodes to ensure a more uniform key distribution across all physical nodes.
 * **Weighted Nodes**: Assign different weights to physical nodes (e.g., based on server capacity), and the library will proportionally assign vnodes.
@@ -20,8 +21,8 @@ The primary goal of consistent hashing is to minimize key remapping when the num
 
 ## Files in This Repository
 
-* `consistent_hash.py`: The core library containing the `ConsistentHashRing` class. This is the only file you need to import into your own project.
-* `test_consistent_hash.py`: A complete `unittest` suite that validates correctness, consistency, and the "minimal movement" property of the ring.
+* `consistent_hash_ring.py`: The core library containing the `ConsistentHashRing` class. This is the only file you need to import into your own project.
+* `test_consistent_hash_ring.py`: A complete `unittest` suite that validates correctness, consistency, and the "minimal movement" property of the ring.
 * `simulation.py`: A standalone simulation script that measures key distribution and the impact of adding/removing nodes.
 
 ---
@@ -30,10 +31,10 @@ The primary goal of consistent hashing is to minimize key remapping when the num
 
 ### 1. As a Library in Your Project
 
-Simply copy `consistent_hash.py` into your project and import the `ConsistentHashRing` class.
+Simply copy `consistent_hash_ring.py` into your project and import the `ConsistentHashRing` class.
 
 ```python
-from consistent_hash import ConsistentHashRing
+from consistent_hash_ring import ConsistentHashRing
 
 # 1. Initialize the ring
 # (100 vnodes per node, 3 replicas by default)
@@ -94,11 +95,9 @@ Returns a list of distinct physical node IDs for storing replicas.
 * `key (str)`: The key to map.
 * `replica_count (int, optional)`: The number of distinct nodes to find. Defaults to self.replication_factor.
 
-## Future Improvements
+## Distributed State Management
 
 While this implementation is a correct and functional data structure, several key considerations must be addressed to make it truly production-ready in a large-scale, concurrent environment.
-
-* **Thread Safety**: The current `ConsistentHashRing` class is **not thread-safe**. If a single instance of the ring is shared between multiple threads, read operations (`get_node`) can race with write operations (`add_node`, `remove_node`), leading to crashes or incorrect results. A production implementation would require an internal lock (like `threading.Lock`) to protect access to the shared `ring` and `vnode_map` data structures.
 
 * **Distributed State Management**: This library only manages its *local* state. In a real distributed system, multiple clients (routers) would each have their own instance of this class. A mechanism is required to ensure all instances have an identical view of the ring's state.
     * **The Problem**: If `Router-A` adds a new node but `Router-B` doesn't, they will have different rings and map the same key to different servers, leading to catastrophic cache misses and data inconsistency.
